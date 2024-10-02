@@ -1,4 +1,5 @@
 # Task 1: Simple graphical app
+This application simulates flying ball and randomly generated obstacle, interacting with ball
 ## Graphial backend
 In this app SDL2 used as graphical library, top level api collected from: https://github.com/lisitsynSA/llvm_course/blob/main/SDL
 ## Build and Run
