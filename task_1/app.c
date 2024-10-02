@@ -28,6 +28,7 @@ void draw_circle(int x0, int y0, int radius, int argb) {
 }
 
 void draw_rectangle(int x, int y, int width, int height, int argb) {
+  // start from left-bottom angle
   for (int i = x; i < x + width; i++)
     {
       for (int j = y; j < y + height; j++)
@@ -37,7 +38,6 @@ void draw_rectangle(int x, int y, int width, int height, int argb) {
     }
 }
 
-// main function
 void app()
 {
   int ball_x = SIM_X_SIZE / 2;
@@ -45,20 +45,23 @@ void app()
   int ball_dx = 2;
   int ball_dy = 2;
   int ball_radius = 10;
+  int previous_ball_x = ball_x;
+  int previous_ball_y = ball_y;
 
-  int obstacle_x = simRand() % SIM_X_SIZE;
-  int obstacle_y = 0;
-  int obstacle_speed = 2;
-  int obstacle_width = 150;
-  int obstacle_height = 150;
-  int previous_obstacle_x = obstacle_x;
-  int previous_obstacle_y = obstacle_y;
+
+  const int obstacle_width = 200;
+  const int obstacle_height = 200;
+  int obstacle_x = simRand() % (SIM_X_SIZE - obstacle_width);
+  int obstacle_y = simRand() % (SIM_Y_SIZE - obstacle_height);
+  const int obstacle_life = 40;
+  int obstacle_timer = obstacle_life; // to draw rectangle on first iteration
 
   int running = 1;
 
   while (running)
   {
-
+    previous_ball_x = ball_x;
+    previous_ball_y = ball_y;
     
     ball_x += ball_dx;
     ball_y += ball_dy;
@@ -75,15 +78,15 @@ void app()
     }
 
 
-    previous_obstacle_y = obstacle_y;
-    obstacle_y += obstacle_speed;
-    if (obstacle_y + obstacle_height >= SIM_Y_SIZE)
+    if (obstacle_timer >= obstacle_life)
     {
-      previous_obstacle_x = obstacle_x;
-      previous_obstacle_y = obstacle_y;
-      obstacle_y = 0;
+      draw_rectangle(obstacle_x, obstacle_y, obstacle_width, obstacle_height, BLACK);
       obstacle_x = simRand() % (SIM_X_SIZE - obstacle_width);
+      obstacle_y = simRand() % (SIM_Y_SIZE - obstacle_height);
+      draw_rectangle(obstacle_x, obstacle_y, obstacle_width, obstacle_height, RED);
+      obstacle_timer = 0;
     }
+    obstacle_timer++;
 
     if (ball_x + ball_radius > obstacle_x && ball_x - ball_radius < obstacle_x + obstacle_width &&
         ball_y + ball_radius > obstacle_y && ball_y - ball_radius < obstacle_y + obstacle_height)
@@ -91,10 +94,9 @@ void app()
       ball_dy = -ball_dy;
     }
 
+    draw_circle(previous_ball_x, previous_ball_y, ball_radius, BLACK);
     draw_circle(ball_x, ball_y, ball_radius, WHITE);
 
-    draw_rectangle(previous_obstacle_x, previous_obstacle_y, obstacle_width, obstacle_height, BLACK);
-    draw_rectangle(obstacle_x, obstacle_y, obstacle_width, obstacle_height, RED);
 
     simFlush();
   }
