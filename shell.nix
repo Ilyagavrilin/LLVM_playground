@@ -1,11 +1,33 @@
-with import <nixpkgs> {};
-(mkShell.override { stdenv = llvmPackages_19.stdenv; }) {
-  buildInputs = [
-    pkg-config
-    python312 cmake
-    zlib
+{ pkgs ? import <nixpkgs> {} }:
+
+let
+  llvmPackages = pkgs.llvmPackages_19;
+  clangBin = "${llvmPackages.clang}/bin";
+  CC = "${clangBin}/clang";
+  CXX = "${clangBin}/clang++";
+
+  pythonEnv = pkgs.python311.withPackages (ps: with ps; [ numpy matplotlib seaborn ]);
+in
+pkgs.mkShell {
+  buildInputs = with pkgs; [
+    llvmPackages.clang
+    llvmPackages.llvm 
+    cmake
+    ninja
     SDL2
-    xorg.libX11
-    llvmPackages.libclang
+    pkg-config
+    pythonEnv
   ];
+
+  shellHook = ''
+    export CC=${CC}
+    export CXX=${CXX}
+    export CMAKE_C_COMPILER=${CC}
+    export CMAKE_CXX_COMPILER=${CXX}
+
+    export LLVM_DIR=${llvmPackages.llvm.dev}/lib/cmake/llvm/
+
+    # Устанавливаем PKG_CONFIG_PATH для поиска SDL2
+    export PKG_CONFIG_PATH=${pkgs.SDL2.dev}/lib/pkgconfig:$PKG_CONFIG_PATH
+  '';
 }
