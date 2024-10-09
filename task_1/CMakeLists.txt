@@ -1,7 +1,5 @@
 cmake_minimum_required(VERSION 3.7)
 
-set(CMAKE_C_COMPILER "/usr/bin/clang")
-set(CMAKE_CXX_COMPILER "/usr/bin/clang++")
 add_compile_options(-fPIC)
 
 project(APP)
