@@ -6,7 +6,7 @@ let
   CC = "${clangBin}/clang";
   CXX = "${clangBin}/clang++";
 
-  pythonEnv = pkgs.python311.withPackages (ps: with ps; [ numpy matplotlib seaborn ]);
+  pythonEnv = pkgs.python311.withPackages (ps: with ps; [ numpy matplotlib seaborn llvmlite]);
 in
 pkgs.mkShell {
   buildInputs = with pkgs; [
@@ -27,7 +27,6 @@ pkgs.mkShell {
 
     export LLVM_DIR=${llvmPackages.llvm.dev}/lib/cmake/llvm/
 
-    # Устанавливаем PKG_CONFIG_PATH для поиска SDL2
     export PKG_CONFIG_PATH=${pkgs.SDL2.dev}/lib/pkgconfig:$PKG_CONFIG_PATH
   '';
 }
