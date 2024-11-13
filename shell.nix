@@ -12,6 +12,7 @@ pkgs.mkShell {
   buildInputs = with pkgs; [
     llvmPackages.clang
     llvmPackages.llvm 
+    libffi
     cmake
     ninja
     SDL2
