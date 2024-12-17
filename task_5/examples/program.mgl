@@ -1,0 +1,10 @@
+func main {
+    var x = 10;
+    var y = 20;
+    var color = 0xFFFF0000;
+
+    screen << pixel(x, y, color);
+    screen << circle(50, 50, 10, color);
+    screen << rectangle(30, 40, 100, 50, color);
+    flush;
+}
