@@ -1,4 +1,5 @@
 %{
+#include "llvm/IR/Value.h"
 #include "parser.tab.h"
 #include <cstring>
 #include <cstdlib>
@@ -34,6 +35,7 @@ extern void yyerror(const char*);
 "if"            { LOG_LEX("Matched IF: %s", yytext); return IF; }
 "else"          { LOG_LEX("Matched ELSE: %s", yytext); return ELSE; }
 "goto"          { LOG_LEX("Matched GOTO: %s", yytext); return GOTO; }
+"main"          { LOG_LEX("Matched MAIN: %s", yytext); return MAIN;}
 
 ":"             { LOG_LEX("Matched COLON: %s", yytext); return COLON; }
 "<<"            { LOG_LEX("Matched STREAM: %s", yytext); return STREAM; }

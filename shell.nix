@@ -18,6 +18,9 @@ pkgs.mkShell {
     SDL2
     pkg-config
     pythonEnv
+    bison
+    flex
+    flexcpp
   ];
 
   shellHook = ''
