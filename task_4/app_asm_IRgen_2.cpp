@@ -118,12 +118,29 @@ int main(int argc, char *argv[]) {
         *module, regFileType, false, GlobalValue::ExternalLinkage,
         ConstantAggregateZero::get(regFileType), "regFile");
 
+    // Declare `STACK` as a zero-initialized global variable
+    ArrayType *stackType = ArrayType::get(builder.getInt32Ty(), STACK_SIZE);
+    GlobalVariable *stack = new GlobalVariable(
+        *module, stackType, false, GlobalValue::ExternalLinkage,
+        ConstantAggregateZero::get(stackType), "stack");
+
     // Create the main function
     FunctionType *mainFuncType = FunctionType::get(builder.getVoidTy(), false);
     Function *mainFunc = Function::Create(
         mainFuncType, Function::ExternalLinkage, "main", module.get());
     BasicBlock *entryBB = BasicBlock::Create(context, "entry", mainFunc);
     builder.SetInsertPoint(entryBB);
+
+    // Initialize SP and FP
+    // Store initial SP value (STACK_SIZE) into regFile[REG_SP_INDEX]
+    Value *spInitPtr = builder.CreateInBoundsGEP(
+        regFileType, regFile, {builder.getInt32(0), builder.getInt32(REG_SP_INDEX)});
+    builder.CreateStore(builder.getInt32(STACK_SIZE), spInitPtr);
+
+    // Initialize FP to 0
+    Value *fpInitPtr = builder.CreateInBoundsGEP(
+        regFileType, regFile, {builder.getInt32(0), builder.getInt32(REG_FP_INDEX)});
+    builder.CreateStore(builder.getInt32(0), fpInitPtr);
 
     // Load instructions from file with comments and labels
     std::unordered_map<std::string, int> labelMap;
@@ -158,10 +175,6 @@ int main(int argc, char *argv[]) {
     } else {
         builder.CreateRetVoid();
     }
-
-    // Initialize SP and FP
-    REG_FILE[REG_SP_INDEX] = STACK_SIZE; // SP points to the top of the stack
-    REG_FILE[REG_FP_INDEX] = 0;          // Initialize FP to 0
 
     // Process each instruction
     for (size_t pc = 0; pc < instructions.size(); ++pc) {
@@ -334,15 +347,26 @@ int main(int argc, char *argv[]) {
 
             // Store register value to stack
             Value *stackPtr = builder.CreateInBoundsGEP(
-                ArrayType::get(builder.getInt32Ty(), STACK_SIZE),
-                builder.CreateGlobalStringPtr("STACK"),
-                {builder.getInt32(0), newSpVal});
+                stackType, stack, {builder.getInt32(0), newSpVal});
 
             Value *regPtr = builder.CreateInBoundsGEP(
                 regFileType, regFile, {builder.getInt32(0), builder.getInt32(regIndex)});
             Value *regVal = builder.CreateLoad(builder.getInt32Ty(), regPtr);
-            // Since we don't have a real stack, we'll skip actual stack implementation for brevity
-            // In practice, you'd need to define the STACK array similarly to regFile and handle it appropriately
+
+            builder.CreateStore(regVal, stackPtr);
+
+            // Branch to the next instruction
+            BasicBlock *nextBB = nullptr;
+            if (pc + 1 < instructions.size()) {
+                nextBB = instructionBBs[pc + 1];
+            } else {
+                nextBB = BasicBlock::Create(context, "exit", mainFunc);
+                builder.SetInsertPoint(nextBB);
+                builder.CreateRetVoid();
+            }
+            builder.CreateBr(nextBB);
+            terminatorAdded = true;
+
         } else if (opcode == "POP") {
             // Handle POP instruction
             std::string reg;
@@ -373,12 +397,32 @@ int main(int argc, char *argv[]) {
             // No underflow block
             builder.SetInsertPoint(noUnderflowBB);
 
-            // Load value from stack and increment SP
-            // Again, skipping actual stack implementation for brevity
+            // Load value from stack
+            Value *stackPtr = builder.CreateInBoundsGEP(
+                stackType, stack, {builder.getInt32(0), spVal});
+            Value *stackVal = builder.CreateLoad(builder.getInt32Ty(), stackPtr);
+
+            // Store value into register
+            Value *regPtr = builder.CreateInBoundsGEP(
+                regFileType, regFile, {builder.getInt32(0), builder.getInt32(regIndex)});
+            builder.CreateStore(stackVal, regPtr);
 
             // Increment SP
             Value *newSpVal = builder.CreateAdd(spVal, builder.getInt32(1));
             builder.CreateStore(newSpVal, spPtr);
+
+            // Branch to the next instruction
+            BasicBlock *nextBB = nullptr;
+            if (pc + 1 < instructions.size()) {
+                nextBB = instructionBBs[pc + 1];
+            } else {
+                nextBB = BasicBlock::Create(context, "exit", mainFunc);
+                builder.SetInsertPoint(nextBB);
+                builder.CreateRetVoid();
+            }
+            builder.CreateBr(nextBB);
+            terminatorAdded = true;
+
         } else if (opcode == "BR") {
             // Handle unconditional branch
             std::string label;
@@ -487,9 +531,36 @@ int main(int argc, char *argv[]) {
                     exit(EXIT_FAILURE);
                 }
 
-                // Push return address
-                // For simplicity, we're not implementing a full call stack here
-                // In practice, you'd need to handle the call stack properly
+                // Push return address (pc + 1) onto the stack
+
+                // Decrement SP
+                Value *spPtr = builder.CreateInBoundsGEP(
+                    regFileType, regFile, {builder.getInt32(0), builder.getInt32(REG_SP_INDEX)});
+                Value *spVal = builder.CreateLoad(builder.getInt32Ty(), spPtr);
+                Value *newSpVal = builder.CreateSub(spVal, builder.getInt32(1));
+                builder.CreateStore(newSpVal, spPtr);
+
+                // Check for stack overflow
+                Value *overflowCond = builder.CreateICmpSLT(newSpVal, builder.getInt32(0));
+                BasicBlock *overflowBB = BasicBlock::Create(context, "overflow_call", mainFunc);
+                BasicBlock *noOverflowBB = BasicBlock::Create(context, "no_overflow_call", mainFunc);
+                builder.CreateCondBr(overflowCond, overflowBB, noOverflowBB);
+
+                // Overflow block
+                builder.SetInsertPoint(overflowBB);
+                FunctionType *abortFuncType = FunctionType::get(builder.getVoidTy(), false);
+                FunctionCallee abortFunc = module->getOrInsertFunction("abort", abortFuncType);
+                builder.CreateCall(abortFunc);
+                builder.CreateUnreachable();
+
+                // No overflow block
+                builder.SetInsertPoint(noOverflowBB);
+
+                // Store return address (pc + 1)
+                int returnAddress = pc + 1;
+                Value *stackPtr = builder.CreateInBoundsGEP(
+                    stackType, stack, {builder.getInt32(0), newSpVal});
+                builder.CreateStore(builder.getInt32(returnAddress), stackPtr);
 
                 // Branch to function label
                 builder.CreateBr(labelBBMap[function]);
@@ -497,9 +568,48 @@ int main(int argc, char *argv[]) {
             }
         } else if (opcode == "RET") {
             // Handle RET instruction
-            // For simplicity, we will not handle the return address stack here
-            // In practice, you'd need to implement it properly
+
+            // Load SP
+            Value *spPtr = builder.CreateInBoundsGEP(
+                regFileType, regFile, {builder.getInt32(0), builder.getInt32(REG_SP_INDEX)});
+            Value *spVal = builder.CreateLoad(builder.getInt32Ty(), spPtr);
+
+            // Check for stack underflow
+            Value *underflowCond = builder.CreateICmpUGE(spVal, builder.getInt32(STACK_SIZE));
+            BasicBlock *underflowBB = BasicBlock::Create(context, "underflow_ret", mainFunc);
+            BasicBlock *noUnderflowBB = BasicBlock::Create(context, "no_underflow_ret", mainFunc);
+            builder.CreateCondBr(underflowCond, underflowBB, noUnderflowBB);
+
+            // Underflow block
+            builder.SetInsertPoint(underflowBB);
+            FunctionType *abortFuncType = FunctionType::get(builder.getVoidTy(), false);
+            FunctionCallee abortFunc = module->getOrInsertFunction("abort", abortFuncType);
+            builder.CreateCall(abortFunc);
+            builder.CreateUnreachable();
+
+            // No underflow block
+            builder.SetInsertPoint(noUnderflowBB);
+
+            // Load return address from stack
+            Value *stackPtr = builder.CreateInBoundsGEP(
+                stackType, stack, {builder.getInt32(0), spVal});
+            Value *returnAddrVal = builder.CreateLoad(builder.getInt32Ty(), stackPtr);
+
+            // Increment SP
+            Value *newSpVal = builder.CreateAdd(spVal, builder.getInt32(1));
+            builder.CreateStore(newSpVal, spPtr);
+
+            // Create switch for indirect branching
+            BasicBlock *defaultBB = BasicBlock::Create(context, "default_ret", mainFunc);
+            builder.SetInsertPoint(defaultBB);
             builder.CreateRetVoid();
+
+            builder.SetInsertPoint(noUnderflowBB);
+            SwitchInst *switchInst = builder.CreateSwitch(returnAddrVal, defaultBB, instructionBBs.size());
+
+            for (size_t i = 0; i < instructionBBs.size(); ++i) {
+                switchInst->addCase(builder.getInt32(i), instructionBBs[i]);
+            }
             terminatorAdded = true;
         } else if (opcode == "EXIT") {
             // Handle EXIT instruction
