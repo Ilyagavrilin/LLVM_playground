@@ -1,0 +1,14 @@
+func main {
+    if(5 < 10) { goto label1; } else { goto label2; }
+
+    label1:
+    screen << pixel(10, 10, 0xFFFFFF);
+    flush;
+    goto end;
+
+    label2:
+    screen << pixel(20, 20, 0xFFFFFF);
+    flush;
+
+    end:
+}

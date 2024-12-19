@@ -1,0 +1,14 @@
+func main {
+    var val = 5;
+    var color = 0x00FFFF;
+
+    if (val > 3) {
+        // If condition is true, draw a rectangle
+        screen << rectangle(10, 10, val*10, val*5, color);
+    } else {
+        // Else, draw a single pixel
+        screen << pixel(5, 5, color);
+    }
+
+    flush;
+}
