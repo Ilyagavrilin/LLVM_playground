@@ -144,13 +144,13 @@ Statement:
         Builder.CreateCall(SimPutPixelFunc, Args);
     }
     | SCREEN STREAM CIRCLE LPAREN Expression COMMA Expression COMMA Expression COMMA Expression RPAREN SEMICOLON {
-        // Draw a pixel using simPutPixel
+        // Draw a circle using SimDrawCircle
         LOG_BISON_MSG("Drawing pixel at runtime");
         Value* Args[] = { $5, $7, $9, $11 };
         Builder.CreateCall(SimDrawCircleFunc, Args);
     }
     | SCREEN STREAM RECTANGLE LPAREN Expression COMMA Expression COMMA Expression COMMA Expression COMMA Expression RPAREN SEMICOLON {
-        // Draw a pixel using simPutPixel
+        // Draw a rectangle using SimDrawRect
         LOG_BISON_MSG("Drawing pixel at runtime");
         Value* Args[] = { $5, $7, $9, $11, $13 };
         Builder.CreateCall(SimDrawRectFunc, Args);
